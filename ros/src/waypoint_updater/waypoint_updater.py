@@ -5,6 +5,7 @@ from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 
 import math
+from std_msgs .msg import Int32
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -22,6 +23,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+SLOWDOWN_WPS = 10 # Number of waypoints starting to slow down to stop
 MPH2MPS = 0.44704
 SPEED = 15 * MPH2MPS
 
@@ -64,7 +66,7 @@ class WaypointUpdater(object):
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-
+	rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -74,7 +76,11 @@ class WaypointUpdater(object):
 	# list of base waypoints
 	self.base_waypoints = None
 
+	# traffic waypoint index
+	self.traffic_waypt_index = None
+
         rospy.spin()
+
 
     def pose_cb(self, msg):
         # TODO: Implement
@@ -87,9 +93,38 @@ class WaypointUpdater(object):
 		# get look ahead waypoints
 		points = get_next_waypoints(self.base_waypoints, idx, LOOKAHEAD_WPS)
 		rospy.loginfo("pos_cb: %s, points:%s, cur_pos:%s", idx, len(points), self.cur_pos)
+		slowdown_index = None
+		delta = 0
+		if self.traffic_waypt_index != None and self.traffic_waypt_index >= idx:
+			slowdown_index = max(self.traffic_waypt_index - SLOWDOWN_WPS, idx)
+			count = max(self.traffic_waypt_index - slowdown_index - 2, 0)
+			if count != 0:
+				delta = SPEED / count
+			else:
+				delta = SPEED
+			slowdown_end = slowdown_index + count 
+			rospy.loginfo("idx: %s, traffic_idx:%s, slowdown_idx:%s, end:%s, delta:%s, count:%s", idx, self.traffic_waypt_index, slowdown_index, slowdown_end, delta, count)
 		# set speed
+		i = 0
+		slowness = SPEED
 		for pt in points:
-			pt.twist.twist.linear.x = SPEED
+			if slowdown_index != None :
+				if i < slowdown_index or i > self.traffic_waypt_index:
+					pt.twist.twist.linear.x = SPEED
+				else:
+					pt.twist.twist.linear.x = 0	
+				#elif i >=  slowdown_index and i < slowdown_end:
+				#	pt.twist.twist.linear.x = slowness
+				#	slowness -= delta
+				#elif i <  self.traffic_waypt_index + 1:
+				#	pt.twist.twist.linear.x = 0	
+				#	slowness = 0
+				#else:
+				#	slowness += SPEED / 10
+				#	pt.twist.twist.linear.x = max(SPEED, slowness)
+				i += 1
+			else:
+				pt.twist.twist.linear.x = SPEED
 			#rospy.loginfo("  x:%s, y:%s", pt.pose.pose.position.x, pt.pose.pose.position.y)
 		# make lane object
 		lane = get_lane_object(frame_id, points)
@@ -102,7 +137,10 @@ class WaypointUpdater(object):
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
-        pass
+        self.traffic_waypt_index = msg.data
+	rospy.loginfo("traffic waypt_index:%s", msg.data)
+	if (self.traffic_waypt_index < 0):
+		self.traffic_waypt_index = None
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later

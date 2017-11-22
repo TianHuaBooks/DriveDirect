@@ -36,7 +36,7 @@ class DBWNode(object):
         rospy.init_node('dbw_node')
 
         vehicle_mass = rospy.get_param('~vehicle_mass', 1736.35)
-        fuel_capacity = rospy.get_param('~fuel_capacity', 13.5)
+        self.fuel_capacity = rospy.get_param('~fuel_capacity', 13.5)
         brake_deadband = rospy.get_param('~brake_deadband', .1)
         decel_limit = rospy.get_param('~decel_limit', -5)
         accel_limit = rospy.get_param('~accel_limit', 1.)
@@ -54,7 +54,7 @@ class DBWNode(object):
                                          BrakeCmd, queue_size=1)
 
         # TODO: Create `TwistController` object
-        self.controller = Controller(wheel_base, steer_ratio, max_lat_accel, max_steer_angle)
+        self.controller = Controller(wheel_base, steer_ratio, max_lat_accel, max_steer_angle, wheel_radius, vehicle_mass, brake_deadband, decel_limit, accel_limit)
 
 	self.prop_linear_velocity = None
 	self.prop_angular_velocity = None
@@ -83,11 +83,12 @@ class DBWNode(object):
         while not rospy.is_shutdown():
             # TODO: Get predicted throttle, brake, and steering using `twist_controller`
             # You should only publish the control commands if dbw is enabled
-	    
+	    # We should get the amount gas still in the car (for now use fuel capacity)
             throttle, brake, steering = self.controller.control(self.prop_linear_velocity,
                                                                  self.prop_angular_velocity,
                                                                  self.cur_velocity,
-                                                                 self.dbw_enabled)
+                                                                 self.dbw_enabled,
+								 self.fuel_capacity)
 	    if self.dbw_enabled:            
    		self.publish(throttle, brake, steering)
 	    
