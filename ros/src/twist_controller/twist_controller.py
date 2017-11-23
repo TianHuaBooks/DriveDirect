@@ -47,12 +47,15 @@ class Controller(object):
 		# calc accel & brake
 		brake = 0
 		if error < 0:
-			accel = (current_velocity.twist.linear.x - last_vel) / dt
+			accel = -error / dt
 			accel = min(max(accel, self.decel_limit), self.accel_limit) 
 			brake = (self.vehicle_mass + fuel_amount * GAS_DENSITY) * accel * self.wheel_radius
 			if brake < self.brake_deadband:
 				brake = 0
-			rospy.loginfo(" error:%s, throttle:%s, brake:%s, accel:%s", error, throttle, brake, accel);
+			throttle = 0
+			#rospy.loginfo(" error:%s, throttle:%s, brake:%s, accel:%s, self.brake_deadband:%s", error, throttle, brake, accel, self.brake_deadband);
+		else:
+			brake = 0
 		steer = self.yaw_controller.get_steering(linear_velocity.x, angular_velocity.z, current_velocity.twist.linear.x)
         	return throttle, brake, steer
 	else:

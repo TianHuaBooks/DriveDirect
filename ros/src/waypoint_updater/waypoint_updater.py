@@ -47,8 +47,13 @@ def get_closest_waypoint(pos, waypoints):
 
 # get next waypoints starting from idx up to count
 def get_next_waypoints(waypoints, idx, count):
-	last = min(len(waypoints), idx+count)
-	return [waypoints[i] for i in range(idx+1, last)]
+	sz = len(waypoints)
+	last = idx + count + 1
+	if last < sz:
+		return waypoints[idx:last]
+	else:
+		last -= sz # handle circular queue
+		return waypoints[idx:] + waypoints[:last]
 
 # get lane from the waypoints with given id
 def get_lane_object(id, waypoints):
@@ -86,8 +91,10 @@ class WaypointUpdater(object):
         # TODO: Implement
         self.cur_pos = msg.pose.position
 	frame_id = msg.header.frame_id
+    	self.process_waypts(frame_id)
 
-	if self.base_waypoints != None:
+    def process_waypts(self, frame_id):
+	if self.base_waypoints != None and self.cur_pos != None:
 		# get the closet waypont to the car
 		idx = get_closest_waypoint(self.cur_pos, self.base_waypoints)
 		# get look ahead waypoints
@@ -96,8 +103,8 @@ class WaypointUpdater(object):
 		slowdown_index = None
 		delta = 0
 		if self.traffic_waypt_index != None and self.traffic_waypt_index >= idx:
-			slowdown_index = max(self.traffic_waypt_index - SLOWDOWN_WPS, idx)
-			count = max(self.traffic_waypt_index - slowdown_index - 2, 0)
+			slowdown_index = max(self.traffic_waypt_index - SLOWDOWN_WPS - idx, 0)
+			count = max(self.traffic_waypt_index - slowdown_index, 0)
 			if count != 0:
 				delta = SPEED / count
 			else:
@@ -109,7 +116,7 @@ class WaypointUpdater(object):
 		slowness = SPEED
 		for pt in points:
 			if slowdown_index != None :
-				if i < slowdown_index or i > self.traffic_waypt_index:
+				if i < slowdown_index or i > slowdown_end:
 					pt.twist.twist.linear.x = SPEED
 				else:
 					pt.twist.twist.linear.x = 0	
